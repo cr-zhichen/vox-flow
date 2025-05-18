@@ -14,6 +14,20 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AUTH_METHOD,
+  getAuthMethod,
+  setAuthMethod,
+  clearAuthData,
+  isPasswordVerified as checkPasswordVerified,
+  setPasswordVerified,
+  getPassword,
+  savePassword,
+  clearPassword,
+  getApiKey,
+  saveApiKey,
+  clearApiKey
+} from "@/lib/auth"
 
 interface AuthDialogProps {
   open: boolean
@@ -30,7 +44,7 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
   const [showApiKey, setShowApiKey] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<string>("password")
+  const [activeTab, setActiveTab] = useState<string>(AUTH_METHOD.PASSWORD)
   const [isPasswordVerified, setIsPasswordVerified] = useState(false)
   const [hasAccessPassword, setHasAccessPassword] = useState(true)
   const [envChecked, setEnvChecked] = useState(false)
@@ -42,14 +56,33 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
         const response = await fetch("/api/check-env")
         const data = await response.json()
 
-        // 如果两个环境变量都存在，默认使用密码选项卡，否则使用API密钥选项卡
-        const defaultTab = data.hasApiKey && data.hasPassword ? "password" : "apikey"
-        setActiveTab(defaultTab)
+        // 获取保存的身份验证方法
+        const savedAuthMethod = getAuthMethod()
+
+        // 如果用户之前已选择身份验证方法，优先使用该方法
+        if (savedAuthMethod) {
+          setActiveTab(savedAuthMethod)
+        } else {
+          // 否则根据环境变量决定默认选项卡
+          const defaultTab = data.hasApiKey && data.hasPassword ? AUTH_METHOD.PASSWORD : AUTH_METHOD.API_KEY
+          setActiveTab(defaultTab)
+        }
+
         setHasAccessPassword(data.hasPassword)
         setEnvChecked(true)
       } catch (err) {
         console.error("环境变量检查失败:", err)
-        setActiveTab(hasServerApiKey ? "password" : "apikey")
+
+        // 获取保存的身份验证方法
+        const savedAuthMethod = getAuthMethod()
+
+        // 如果用户之前已选择身份验证方法，优先使用该方法
+        if (savedAuthMethod) {
+          setActiveTab(savedAuthMethod)
+        } else {
+          setActiveTab(hasServerApiKey ? AUTH_METHOD.PASSWORD : AUTH_METHOD.API_KEY)
+        }
+
         setEnvChecked(true)
       }
     }
@@ -59,11 +92,11 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
   // 检查是否已经验证过密码
   useEffect(() => {
-    const verified = localStorage.getItem("password_verified") === "true"
-    setIsPasswordVerified(verified)
+    // 使用工具函数检查密码是否已验证
+    setIsPasswordVerified(checkPasswordVerified())
 
     // 加载保存的密码
-    const savedPassword = localStorage.getItem("siliconflow_password")
+    const savedPassword = getPassword()
     if (savedPassword) {
       setPassword(savedPassword)
     }
@@ -71,7 +104,7 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
   // 加载保存的API密钥
   useEffect(() => {
-    const savedApiKey = localStorage.getItem("siliconflow_api_key")
+    const savedApiKey = getApiKey()
     if (savedApiKey) {
       setApiKey(savedApiKey)
     }
@@ -86,9 +119,11 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
       // 如果环境变量中没有设置访问密码，则直接验证成功
       if (!hasAccessPassword) {
-        localStorage.setItem("password_verified", "true")
+        setPasswordVerified(true)
         // 保存密码到本地存储
-        localStorage.setItem("siliconflow_password", password)
+        savePassword(password)
+        // 保存身份验证方法选择
+        setAuthMethod(AUTH_METHOD.PASSWORD)
         setIsPasswordVerified(true)
         onVerify(true)
         setError(null)
@@ -107,10 +142,12 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
       const data = await response.json()
 
       if (data.success) {
-        // 密码验证成功，保存到本地存储
-        localStorage.setItem("password_verified", "true")
+        // 密码验证成功
+        setPasswordVerified(true)
         // 保存密码到本地存储
-        localStorage.setItem("siliconflow_password", password)
+        savePassword(password)
+        // 保存身份验证方法选择
+        setAuthMethod(AUTH_METHOD.PASSWORD)
         setIsPasswordVerified(true)
         onVerify(true)
         setError(null)
@@ -130,22 +167,23 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
-      localStorage.setItem("siliconflow_api_key", apiKey)
+      saveApiKey(apiKey)
+      // 保存身份验证方法选择
+      setAuthMethod(AUTH_METHOD.API_KEY)
       onSaveApiKey(apiKey)
       onOpenChange(false) // 保存API密钥后关闭对话框
     }
   }
 
   const handleClearPassword = () => {
-    localStorage.removeItem("password_verified")
-    localStorage.removeItem("siliconflow_password")
+    clearAuthData(AUTH_METHOD.PASSWORD)
     setIsPasswordVerified(false)
     setPassword("")
     onVerify(false)
   }
 
   const handleClearApiKey = () => {
-    localStorage.removeItem("siliconflow_api_key")
+    clearAuthData(AUTH_METHOD.API_KEY)
     setApiKey("")
     onSaveApiKey("")
   }
@@ -157,9 +195,9 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
   // 处理验证或保存API密钥的操作
   const handleAction = () => {
-    if (activeTab === "password") {
+    if (activeTab === AUTH_METHOD.PASSWORD) {
       handleVerify()
-    } else if (activeTab === "apikey") {
+    } else if (activeTab === AUTH_METHOD.API_KEY) {
       handleSaveApiKey()
     }
   }
@@ -188,13 +226,13 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="password" disabled={!hasServerApiKey}>
+            <TabsTrigger value={AUTH_METHOD.PASSWORD} disabled={!hasServerApiKey}>
               使用密码
             </TabsTrigger>
-            <TabsTrigger value="apikey">使用API密钥</TabsTrigger>
+            <TabsTrigger value={AUTH_METHOD.API_KEY}>使用API密钥</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="password" className="mt-4">
+          <TabsContent value={AUTH_METHOD.PASSWORD} className="mt-4">
             <div className="grid gap-4">
               {!hasAccessPassword ? (
                 <Alert>
@@ -247,16 +285,15 @@ export default function AuthDialog({ open, onOpenChange, onVerify, onSaveApiKey,
                 onClick={handleVerify}
                 disabled={
                   (hasAccessPassword && !password.trim()) ||
-                  isVerifying ||
-                  isPasswordVerified
+                  isVerifying
                 }
               >
-                {isVerifying ? "验证中..." : isPasswordVerified ? "已验证" : "验证密码"}
+                {isVerifying ? "验证中..." : isPasswordVerified ? "重新验证" : "验证密码"}
               </Button>
             </div>
           </TabsContent>
 
-          <TabsContent value="apikey" className="mt-4">
+          <TabsContent value={AUTH_METHOD.API_KEY} className="mt-4">
             <div className="grid gap-4">
               <div className="relative">
                 <Input

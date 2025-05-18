@@ -6,8 +6,14 @@ import { Card } from "@/components/ui/card"
 import { Mic, Square, Loader2, AlertCircle } from "lucide-react"
 import { transcribeAudio } from "@/app/actions"
 import TranscriptionResult from "./transcription-result"
-import AuthDialog from "./auth-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  isPasswordVerified as checkPasswordVerified,
+  getApiKey,
+  isUsingPassword,
+  isUsingApiKey,
+  getEffectiveApiKey
+} from "@/lib/auth"
 
 export default function AudioRecorder() {
   const [isRecording, setIsRecording] = useState(false)
@@ -16,7 +22,6 @@ export default function AudioRecorder() {
   const [transcription, setTranscription] = useState<string | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [isPasswordVerified, setIsPasswordVerified] = useState(false)
@@ -24,16 +29,15 @@ export default function AudioRecorder() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const pendingFileRef = useRef<File | null>(null)
 
   // 加载保存的API密钥和检查密码验证状态
   useEffect(() => {
-    const savedApiKey = localStorage.getItem("siliconflow_api_key")
+    const savedApiKey = getApiKey()
     if (savedApiKey) {
       setApiKey(savedApiKey)
     }
 
-    const verified = localStorage.getItem("password_verified") === "true"
+    const verified = checkPasswordVerified()
     setIsPasswordVerified(verified)
 
     // 检查服务器是否有API密钥
@@ -105,20 +109,6 @@ export default function AudioRecorder() {
       return
     }
 
-    // 检查是否有API密钥或密码验证
-    const savedApiKey = localStorage.getItem("siliconflow_api_key")
-    const isVerified = localStorage.getItem("password_verified") === "true"
-
-    if (!savedApiKey && !isVerified) {
-      // 如果既没有API密钥也没有密码验证，则打开验证对话框
-      const audioFile = new File([audioBlob], "recording.webm", {
-        type: audioBlob.type,
-      })
-      pendingFileRef.current = audioFile
-      setAuthDialogOpen(true)
-      return
-    }
-
     try {
       setIsTranscribing(true)
       setError(null)
@@ -129,24 +119,21 @@ export default function AudioRecorder() {
         type: audioBlob.type,
       })
 
+      // 使用getEffectiveApiKey获取当前应该使用的API密钥
+      const effectiveApiKey = getEffectiveApiKey()
+      const isVerified = checkPasswordVerified()
+
       setDebugInfo(`创建音频文件: 大小 ${(audioFile.size / 1024).toFixed(2)} KB, 类型 ${audioFile.type}`)
       setDebugInfo(
-        `API密钥状态: ${savedApiKey ? "已保存" : "未保存"}, 密码验证状态: ${isVerified ? "已验证" : "未验证"}`,
+        `API密钥状态: ${effectiveApiKey ? "已保存" : "未保存"}, 密码验证状态: ${isVerified ? "已验证" : "未验证"}`,
       )
 
       setDebugInfo("发送转录请求...")
-      const result = await transcribeAudio(audioFile, savedApiKey || undefined, isVerified)
+      const result = await transcribeAudio(audioFile, effectiveApiKey || undefined, isVerified)
       setDebugInfo(`收到转录响应: ${JSON.stringify(result)}`)
 
       if (result.error) {
-        if (result.needApiKey) {
-          // 需要API密钥
-          setDebugInfo("需要API密钥，打开对话框")
-          pendingFileRef.current = audioFile
-          setAuthDialogOpen(true)
-        } else {
-          setError(result.error)
-        }
+        setError(result.error)
       } else if (result.text) {
         setTranscription(result.text)
       } else {
@@ -162,52 +149,7 @@ export default function AudioRecorder() {
     }
   }
 
-  const handlePasswordVerify = (success: boolean) => {
-    setIsPasswordVerified(success)
 
-    // 如果验证成功且有待处理的文件，继续转录
-    if (success && pendingFileRef.current) {
-      processPendingFile()
-    }
-  }
-
-  const handleApiKeySave = (newApiKey: string) => {
-    setApiKey(newApiKey)
-
-    // 如果保存了API密钥且有待处理的文件，继续转录
-    if (newApiKey && pendingFileRef.current) {
-      processPendingFile()
-    }
-  }
-
-  const processPendingFile = async () => {
-    if (!pendingFileRef.current) return
-
-    try {
-      setIsTranscribing(true)
-      setError(null)
-
-      const savedApiKey = localStorage.getItem("siliconflow_api_key")
-      const isVerified = localStorage.getItem("password_verified") === "true"
-
-      const result = await transcribeAudio(pendingFileRef.current, savedApiKey || undefined, isVerified)
-      setDebugInfo(`使用新凭证的转录响应: ${JSON.stringify(result)}`)
-
-      if (result.error) {
-        setError(result.error)
-      } else if (result.text) {
-        setTranscription(result.text)
-      } else {
-        setError("转录服务返回了空响应。请再次尝试。")
-      }
-    } catch (err) {
-      console.error("Transcription error:", err)
-      setError(`转录过程中发生错误: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setIsTranscribing(false)
-      pendingFileRef.current = null
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -272,13 +214,7 @@ export default function AudioRecorder() {
         {transcription && <TranscriptionResult text={transcription} />}
       </div>
 
-      <AuthDialog
-        open={authDialogOpen}
-        onOpenChange={setAuthDialogOpen}
-        onVerify={handlePasswordVerify}
-        onSaveApiKey={handleApiKeySave}
-        hasServerApiKey={hasServerApiKey}
-      />
+
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LockIcon, UnlockIcon } from "lucide-react"
 import AuthDialog from "./auth-dialog"
+import { isPasswordVerified as checkPasswordVerified, getApiKey, AUTH_METHOD, isUsingPassword, isUsingApiKey } from "@/lib/auth"
 
 export default function AuthStatus() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
@@ -14,11 +15,11 @@ export default function AuthStatus() {
 
   // 检查是否已经验证过密码
   useEffect(() => {
-    const verified = localStorage.getItem("password_verified") === "true"
+    const verified = checkPasswordVerified()
     setIsPasswordVerified(verified)
 
     // 检查是否有本地API密钥
-    const savedApiKey = localStorage.getItem("siliconflow_api_key")
+    const savedApiKey = getApiKey()
     setHasApiKey(!!savedApiKey)
 
     // 检查服务器是否有API密钥
@@ -43,6 +44,17 @@ export default function AuthStatus() {
     setHasApiKey(!!newApiKey)
   }
 
+  const getAuthMethodText = () => {
+    if (isUsingPassword()) {
+      return "使用服务器API密钥"
+    } else if (isUsingApiKey()) {
+      return "使用本地API密钥"
+    } else {
+      // 向后兼容，保持原有行为
+      return isPasswordVerified ? "使用服务器API密钥" : "使用本地API密钥"
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -58,7 +70,7 @@ export default function AuthStatus() {
                 <div>
                   <p className="font-medium text-green-600">已验证</p>
                   <p className="text-sm text-muted-foreground">
-                    {isPasswordVerified ? "使用服务器API密钥" : "使用本地API密钥"}
+                    {getAuthMethodText()}
                   </p>
                 </div>
               </>
