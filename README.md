@@ -27,7 +27,7 @@ VoxFlow是一个基于Next.js构建的语音转文字应用，使用了SiliconFl
 1. 克隆仓库：
 
 ```bash
-git clone https://github.com/yourusername/vox-flow.git
+git clone https://github.com/cr-zhichen/vox-flow.git
 cd vox-flow
 ```
 
