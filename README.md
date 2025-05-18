@@ -2,7 +2,7 @@
 
 VoxFlow是一个基于Next.js构建的语音转录工具，使用了SiliconFlow API进行语音识别。该应用允许用户通过录制或上传音频文件，将语音内容转换为文字。
 
-![VoxFlow应用截图]
+![6829d9d29ff9a.png](https://img-cdn.ccrui.cn/2025/05/18/6829d9d29ff9a.png)
 
 ## 功能特点
 
@@ -26,45 +26,34 @@ VoxFlow是一个基于Next.js构建的语音转录工具，使用了SiliconFlow 
 
 1. 克隆仓库：
 
-```bash
-git clone https://github.com/cr-zhichen/vox-flow.git
-cd vox-flow
-```
+   ```bash
+   git clone https://github.com/cr-zhichen/vox-flow.git
+   cd vox-flow
+   ```
 
 2. 安装依赖：
 
-```bash
-# 使用npm
-npm install
-
-# 或使用yarn
-yarn install
-
-# 或使用pnpm
-pnpm install
-```
+   ```bash
+   pnpm install
+   ```
 
 3. 配置环境变量：
 
-在项目根目录创建`.env.local`文件，添加以下内容：
+   在项目根目录创建`.env.local`文件，添加以下内容：
 
-```
-# 可选：配置服务器端API密钥
-SILICONFLOW_API_KEY=your_api_key_here
+   ``` env
+   # 可选：配置服务器端API密钥
+   SILICONFLOW_API_KEY=your_api_key_here
 
-# 可选：如果使用密码保护API密钥，设置密码
-AUTH_PASSWORD=your_password_here
-```
+   # 可选：如果使用密码保护API密钥，设置密码
+   AUTH_PASSWORD=your_password_here
+   ```
 
 4. 运行开发服务器：
 
-```bash
-npm run dev
-# 或
-yarn dev
-# 或
-pnpm dev
-```
+   ```bash
+   pnpm run dev
+   ```
 
 5. 打开浏览器访问 `http://localhost:3000`
 
@@ -100,41 +89,6 @@ pnpm dev
 ### 转写结果
 
 转写完成后，结果将显示在页面上，用户可以：
+
 - 阅读转写文本
 - 复制转写内容到剪贴板
-
-## 开发指南
-
-### 项目结构
-
-```
-/
-├── app/                  # Next.js应用目录
-│   ├── api/              # API路由
-│   ├── actions.ts        # 服务器端动作
-│   ├── globals.css       # 全局样式
-│   ├── layout.tsx        # 应用布局
-│   └── page.tsx          # 主页
-├── components/           # React组件
-│   ├── ui/               # UI组件
-│   ├── audio-recorder.tsx  # 音频录制组件
-│   ├── audio-uploader.tsx  # 音频上传组件
-│   ├── auth-dialog.tsx     # 认证对话框
-│   └── ...
-├── lib/                  # 工具函数和库
-│   ├── auth.ts           # 认证相关函数
-│   └── utils.ts          # 通用工具函数
-├── public/               # 静态资源
-├── styles/               # 样式文件
-└── ...                   # 配置文件等
-```
-
-### 自定义和扩展
-
-1. **修改UI**：
-   - UI组件基于TailwindCSS和Radix UI
-   - 可以通过编辑`tailwind.config.ts`自定义主题
-
-2. **添加更多功能**：
-   - 可以扩展`actions.ts`添加更多服务器端功能
-   - 在`components`目录下添加新组件
