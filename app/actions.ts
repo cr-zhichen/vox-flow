@@ -2,15 +2,22 @@
 
 import { revalidatePath } from "next/cache"
 
-export async function transcribeAudio(file: File, clientApiKey?: string) {
+// 在函数参数中添加 isPasswordVerified 参数
+export async function transcribeAudio(file: File, clientApiKey?: string, isPasswordVerified = false) {
   try {
-    // 优先使用客户端传入的API密钥，其次使用环境变量
-    const apiKey = clientApiKey || process.env.SILICONFLOW_API_KEY
+    // 优先使用客户端传入的API密钥，其次在密码验证通过的情况下使用环境变量
+    let apiKey = clientApiKey
+
+    // 只有在密码验证通过的情况下才使用服务器API密钥
+    if (!apiKey && isPasswordVerified && process.env.SILICONFLOW_API_KEY) {
+      apiKey = process.env.SILICONFLOW_API_KEY
+    }
 
     // 调试输出（仅在开发环境）
     if (process.env.NODE_ENV === "development") {
       console.log("Environment variable exists:", !!process.env.SILICONFLOW_API_KEY)
       console.log("Client API key exists:", !!clientApiKey)
+      console.log("Password verified:", isPasswordVerified)
       console.log("File size:", file.size, "bytes")
       console.log("File type:", file.type)
     }

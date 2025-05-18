@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "语音转文字应用 - SiliconFlow API",
   description: "使用 SiliconFlow API 将语音转换为文字的应用",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({

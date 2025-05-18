@@ -1,11 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import ApiKeyForm from "@/components/api-key-form"
 import AudioRecorder from "@/components/audio-recorder"
 import AudioUploader from "@/components/audio-uploader"
 import { Suspense } from "react"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import DebugPanel from "@/components/debug-panel"
+import AuthStatus from "@/components/auth-status"
 
 export default function Home() {
   const isDev = process.env.NODE_ENV === "development"
@@ -27,7 +27,7 @@ export default function Home() {
             </div>
           }
         >
-          <ApiKeyForm />
+          <AuthStatus />
         </Suspense>
 
         <Card className="mt-6">

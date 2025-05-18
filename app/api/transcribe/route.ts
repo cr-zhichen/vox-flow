@@ -5,10 +5,14 @@ export async function POST(request: NextRequest) {
     // Get form data from request
     const formData = await request.formData()
     const file = formData.get("file") as File
-
-    // 优先使用客户端传入的API密钥，其次使用环境变量
     const clientApiKey = formData.get("apiKey") as string
-    const apiKey = clientApiKey || process.env.SILICONFLOW_API_KEY
+    const isPasswordVerified = formData.get("passwordVerified") === "true"
+
+    // 优先使用客户端传入的API密钥，其次在密码验证通过的情况下使用环境变量
+    let apiKey = clientApiKey
+    if (!apiKey && isPasswordVerified && process.env.SILICONFLOW_API_KEY) {
+      apiKey = process.env.SILICONFLOW_API_KEY
+    }
 
     if (!apiKey) {
       return NextResponse.json({ error: "API密钥未提供", needApiKey: true }, { status: 400 })
