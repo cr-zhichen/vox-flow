@@ -58,7 +58,7 @@ export default function AuthStatus() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>语音转文字验证</CardTitle>
+        <CardTitle>秘钥验证</CardTitle>
         <CardDescription>使用密码或API密钥进行验证以使用语音转文字功能</CardDescription>
       </CardHeader>
       <CardContent>

@@ -13,7 +13,7 @@ export default function Home() {
   return (
     <main className="container mx-auto py-10 px-4 md:px-6">
       <div className="flex flex-col items-center space-y-6 text-center">
-        <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">语音转文字应用</h1>
+        <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">语音转录</h1>
         <p className="max-w-[700px] text-muted-foreground">
           使用SiliconFlow API将语音转换为文字。您可以录制音频或上传音频文件。
         </p>

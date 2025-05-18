@@ -1,6 +1,6 @@
-# VoxFlow - 语音转文字应用
+# VoxFlow
 
-VoxFlow是一个基于Next.js构建的语音转文字应用，使用了SiliconFlow API进行语音识别。该应用允许用户通过录制或上传音频文件，将语音内容转换为文字。
+VoxFlow是一个基于Next.js构建的语音转录工具，使用了SiliconFlow API进行语音识别。该应用允许用户通过录制或上传音频文件，将语音内容转换为文字。
 
 ![VoxFlow应用截图]
 
