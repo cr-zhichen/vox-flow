@@ -19,6 +19,7 @@ export default function AudioUploader() {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [isPasswordVerified, setIsPasswordVerified] = useState(false)
   const [hasServerApiKey, setHasServerApiKey] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -49,19 +50,23 @@ export default function AudioUploader() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      // Check if file is an audio file
-      if (!selectedFile.type.startsWith("audio/")) {
-        setError("请上传音频文件（MP3、WAV等）")
-        setFile(null)
-        setAudioUrl(null)
-        return
-      }
-
-      setError(null)
-      setFile(selectedFile)
-      setAudioUrl(URL.createObjectURL(selectedFile))
-      setTranscription(null)
+      processFile(selectedFile)
     }
+  }
+
+  const processFile = (selectedFile: File) => {
+    // Check if file is an audio file
+    if (!selectedFile.type.startsWith("audio/")) {
+      setError("请上传音频文件（MP3、WAV等）")
+      setFile(null)
+      setAudioUrl(null)
+      return
+    }
+
+    setError(null)
+    setFile(selectedFile)
+    setAudioUrl(URL.createObjectURL(selectedFile))
+    setTranscription(null)
   }
 
   const handleTranscribe = async () => {
@@ -90,7 +95,29 @@ export default function AudioUploader() {
     }
   }
 
+  // 拖拽事件处理
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
 
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      processFile(files[0])
+    }
+  }
 
   const triggerFileInput = () => {
     fileInputRef.current?.click()
@@ -101,9 +128,20 @@ export default function AudioUploader() {
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" className="hidden" />
 
       <div className="flex flex-col items-center justify-center gap-4">
-        <Button variant="outline" size="lg" className="w-full h-16 text-lg border-dashed" onClick={triggerFileInput}>
+        <Button
+          variant="outline"
+          size="lg"
+          className={`w-full h-16 text-lg border-dashed transition-colors ${isDragging
+              ? "border-primary bg-primary/10 text-primary"
+              : "hover:border-primary/50"
+            }`}
+          onClick={triggerFileInput}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <Upload className="mr-2 h-5 w-5" />
-          选择音频文件
+          {isDragging ? "松开鼠标上传文件" : "选择音频文件或拖拽到此处"}
         </Button>
 
         {file && (

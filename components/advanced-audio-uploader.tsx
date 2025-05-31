@@ -8,19 +8,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
-import { 
-  Upload, 
-  Loader2, 
-  FileAudio, 
-  Scissors, 
+import {
+  Upload,
+  Loader2,
+  FileAudio,
+  Scissors,
   Download,
   Play,
   Pause,
   Settings
 } from "lucide-react"
-import { 
-  splitAudioByVAD, 
-  AudioChunk, 
+import {
+  splitAudioByVAD,
+  AudioChunk,
   TranscriptionChunk,
   generateSRT,
   generateVTT,
@@ -38,17 +38,18 @@ export default function AdvancedAudioUploader() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // 切片设置
   const [minChunkLength, setMinChunkLength] = useState([0])     // 改为0秒，不过滤短语音
   const [maxChunkLength, setMaxChunkLength] = useState([30000])
   const [silenceThreshold, setSilenceThreshold] = useState([0.01])
   const [maxConcurrency, setMaxConcurrency] = useState([4])     // 新增：并发数量设置
-  
+
   // 音频播放状态
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [showAllChunks, setShowAllChunks] = useState(false)     // 新增：控制是否显示所有片段
+  const [isDragging, setIsDragging] = useState(false)          // 新增：拖拽状态
   const audioRef = useRef<HTMLAudioElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -67,17 +68,21 @@ export default function AdvancedAudioUploader() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      if (!selectedFile.type.startsWith("audio/")) {
-        setError("请上传音频文件（MP3、WAV等）")
-        return
-      }
-
-      setError(null)
-      setFile(selectedFile)
-      setAudioUrl(URL.createObjectURL(selectedFile))
-      setChunks([])
-      setTranscriptionChunks([])
+      processFile(selectedFile)
     }
+  }
+
+  const processFile = (selectedFile: File) => {
+    if (!selectedFile.type.startsWith("audio/")) {
+      setError("请上传音频文件（MP3、WAV等）")
+      return
+    }
+
+    setError(null)
+    setFile(selectedFile)
+    setAudioUrl(URL.createObjectURL(selectedFile))
+    setChunks([])
+    setTranscriptionChunks([])
   }
 
   const handleSplitAudio = async () => {
@@ -86,22 +91,22 @@ export default function AdvancedAudioUploader() {
     try {
       setIsProcessing(true)
       setError(null)
-      
+
       console.log("开始音频切片处理...")
-      
+
       const audioChunks = await splitAudioByVAD(file, {
         minChunkLength: minChunkLength[0],
         maxChunkLength: maxChunkLength[0],
         silenceThreshold: silenceThreshold[0]
       })
-      
+
       setChunks(audioChunks)
-      
+
       // 自动调整并发数量，不超过片段数量
       if (maxConcurrency[0] > audioChunks.length) {
         setMaxConcurrency([audioChunks.length])
       }
-      
+
       console.log(`音频切片完成，共 ${audioChunks.length} 个片段`)
     } catch (err) {
       console.error("音频切片失败:", err)
@@ -126,7 +131,7 @@ export default function AdvancedAudioUploader() {
         chunks.map(async (chunk) => {
           const arrayBuffer = await chunk.audioBlob.arrayBuffer()
           const base64 = arrayBufferToBase64(arrayBuffer)
-          
+
           return {
             index: chunk.index,
             startTime: chunk.startTime,
@@ -157,12 +162,12 @@ export default function AdvancedAudioUploader() {
 
       const result = await response.json()
       setTranscriptionChunks(result.chunks)
-      
+
       // 显示过滤统计信息
       if (result.originalChunks && result.originalChunks > result.totalChunks) {
         console.log(`已过滤 ${result.originalChunks - result.totalChunks} 个空内容片段`)
       }
-      
+
       console.log(`转录完成，共 ${result.totalChunks} 个有效片段`)
     } catch (err) {
       console.error("批量转录失败:", err)
@@ -194,7 +199,7 @@ export default function AdvancedAudioUploader() {
       default:
         return
     }
-    
+
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -216,6 +221,30 @@ export default function AdvancedAudioUploader() {
     fileInputRef.current?.click()
   }
 
+  // 拖拽事件处理
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      processFile(files[0])
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 文件上传 */}
@@ -227,27 +256,33 @@ export default function AdvancedAudioUploader() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="audio/*" 
-            className="hidden" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="audio/*"
+            className="hidden"
           />
-          
-          <Button 
-            variant="outline" 
-            size="lg" 
-            className="w-full h-16 text-lg border-dashed" 
+
+          <Button
+            variant="outline"
+            size="lg"
+            className={`w-full h-16 text-lg border-dashed transition-colors ${isDragging
+                ? "border-primary bg-primary/10 text-primary"
+                : "hover:border-primary/50"
+              }`}
             onClick={triggerFileInput}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
           >
             <Upload className="mr-2 h-5 w-5" />
-            选择音频文件
+            {isDragging ? "松开鼠标上传文件" : "选择音频文件或拖拽到此处"}
           </Button>
 
           {file && (
             <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center justify-center gap-2 text-sm">
                 <FileAudio className="h-4 w-4" />
                 <span>{file.name}</span>
                 <span className="text-muted-foreground">
@@ -257,10 +292,10 @@ export default function AdvancedAudioUploader() {
 
               {audioUrl && (
                 <div className="w-full">
-                  <audio 
+                  <audio
                     ref={audioRef}
-                    src={audioUrl} 
-                    controls 
+                    src={audioUrl}
+                    controls
                     className="w-full"
                     onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime * 1000)}
                   />
@@ -293,7 +328,7 @@ export default function AdvancedAudioUploader() {
                   className="w-full"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>最大片段长度: {maxChunkLength[0] / 1000}秒</Label>
                 <Slider
@@ -305,7 +340,7 @@ export default function AdvancedAudioUploader() {
                   className="w-full"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>静音阈值: {silenceThreshold[0]}</Label>
                 <Slider
@@ -319,8 +354,8 @@ export default function AdvancedAudioUploader() {
               </div>
             </div>
 
-            <Button 
-              onClick={handleSplitAudio} 
+            <Button
+              onClick={handleSplitAudio}
               disabled={isProcessing || !file}
               className="w-full"
             >
@@ -349,8 +384,8 @@ export default function AdvancedAudioUploader() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
               {(showAllChunks ? chunks : chunks.slice(0, 12)).map((chunk) => (
-                <div 
-                  key={chunk.index} 
+                <div
+                  key={chunk.index}
                   className="flex items-center justify-between p-2 bg-muted rounded text-sm"
                 >
                   <span>片段 {chunk.index + 1}</span>
@@ -360,7 +395,7 @@ export default function AdvancedAudioUploader() {
                 </div>
               ))}
               {chunks.length > 12 && !showAllChunks && (
-                <button 
+                <button
                   onClick={() => setShowAllChunks(true)}
                   className="flex items-center justify-center p-2 bg-muted rounded text-sm text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
                 >
@@ -368,7 +403,7 @@ export default function AdvancedAudioUploader() {
                 </button>
               )}
               {showAllChunks && chunks.length > 12 && (
-                <button 
+                <button
                   onClick={() => setShowAllChunks(false)}
                   className="flex items-center justify-center p-2 bg-muted rounded text-sm text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
                 >
@@ -391,8 +426,8 @@ export default function AdvancedAudioUploader() {
                 />
               </div>
 
-              <Button 
-                onClick={handleTranscribeChunks} 
+              <Button
+                onClick={handleTranscribeChunks}
                 disabled={isTranscribing || chunks.length === 0}
                 className="w-full"
               >
@@ -419,25 +454,25 @@ export default function AdvancedAudioUploader() {
                 转录结果 ({transcriptionChunks.filter(chunk => chunk.text.trim().length > 0).length} 个有效片段)
               </CardTitle>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => downloadSubtitle('srt')}
                 >
                   <Download className="mr-1 h-4 w-4" />
                   下载 SRT
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => downloadSubtitle('vtt')}
                 >
                   <Download className="mr-1 h-4 w-4" />
                   下载 VTT
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => downloadSubtitle('txt')}
                 >
                   <Download className="mr-1 h-4 w-4" />
@@ -451,21 +486,21 @@ export default function AdvancedAudioUploader() {
               {transcriptionChunks
                 .filter(chunk => chunk.text.trim().length > 0 && !chunk.text.startsWith('[转录失败'))
                 .map((chunk, displayIndex) => (
-                <div 
-                  key={chunk.index} 
-                  className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                    <span>片段 {displayIndex + 1}</span>
-                    <span>
-                      {msToSrtTimestamp(chunk.startTime)} → {msToSrtTimestamp(chunk.endTime)}
-                    </span>
+                  <div
+                    key={chunk.index}
+                    className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                      <span>片段 {displayIndex + 1}</span>
+                      <span>
+                        {msToSrtTimestamp(chunk.startTime)} → {msToSrtTimestamp(chunk.endTime)}
+                      </span>
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap">
+                      {chunk.text.trim()}
+                    </div>
                   </div>
-                  <div className="text-sm whitespace-pre-wrap">
-                    {chunk.text.trim()}
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </CardContent>
         </Card>
