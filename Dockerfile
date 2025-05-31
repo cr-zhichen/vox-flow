@@ -24,13 +24,17 @@ FROM node:18-alpine AS production
 
 WORKDIR /app
 
-# 复制独立输出模式的构建产物
-COPY --from=base /app/.next/standalone ./.next/standalone
+# 安装 dumb-init 用于正确处理信号
+RUN apk add --no-cache dumb-init
+
+# 复制 standalone 输出和所有必要文件
+COPY --from=base /app/.next/standalone ./
 COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 
 # 暴露端口
 EXPOSE 3000
 
-# 启动应用
-CMD ["node", ".next/standalone/server.js"] 
+# 使用 dumb-init 和正确的启动命令
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "server.js"] 
