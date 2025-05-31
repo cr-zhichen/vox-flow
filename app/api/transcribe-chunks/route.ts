@@ -126,11 +126,24 @@ export async function POST(request: NextRequest) {
     // 按索引排序结果
     results.sort((a, b) => a.index - b.index)
 
-    console.log(`转录完成，共 ${results.length} 个片段`)
+    // 过滤掉没有内容的转录结果
+    const filteredResults = results.filter(result => {
+      const text = result.text.trim()
+      return text.length > 0 && !text.startsWith('[转录失败')
+    })
+
+    // 重新分配索引，保持连续性
+    const finalResults = filteredResults.map((result, index) => ({
+      ...result,
+      index: index
+    }))
+
+    console.log(`转录完成，共 ${results.length} 个片段，有效片段 ${finalResults.length} 个`)
 
     return NextResponse.json({ 
-      chunks: results,
-      totalChunks: results.length 
+      chunks: finalResults,
+      totalChunks: finalResults.length,
+      originalChunks: results.length
     })
   } catch (error) {
     console.error("批量转录API错误:", error)

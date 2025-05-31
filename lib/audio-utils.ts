@@ -74,7 +74,7 @@ export async function splitAudioByVAD(
   } = {}
 ): Promise<AudioChunk[]> {
   const {
-    minChunkLength = 1000,     // 默认最小1秒
+    minChunkLength = 0,        // 默认最小0秒，不过滤短语音
     maxChunkLength = 30000,    // 默认最大30秒
     silenceThreshold = 0.01    // 默认静音阈值
   } = options
@@ -188,23 +188,35 @@ export interface TranscriptionChunk {
 
 // 生成SRT字幕格式
 export function generateSRT(transcriptionChunks: TranscriptionChunk[]): string {
-  return transcriptionChunks
-    .map(chunk => {
+  // 过滤掉空内容的片段
+  const validChunks = transcriptionChunks.filter(chunk => {
+    const text = chunk.text.trim()
+    return text.length > 0 && !text.startsWith('[转录失败')
+  })
+
+  return validChunks
+    .map((chunk, index) => {
       const startTimestamp = msToSrtTimestamp(chunk.startTime)
       const endTimestamp = msToSrtTimestamp(chunk.endTime)
-      return `${chunk.index + 1}\n${startTimestamp} --> ${endTimestamp}\n${chunk.text}\n`
+      return `${index + 1}\n${startTimestamp} --> ${endTimestamp}\n${chunk.text.trim()}\n`
     })
     .join('\n')
 }
 
 // 生成VTT字幕格式
 export function generateVTT(transcriptionChunks: TranscriptionChunk[]): string {
+  // 过滤掉空内容的片段
+  const validChunks = transcriptionChunks.filter(chunk => {
+    const text = chunk.text.trim()
+    return text.length > 0 && !text.startsWith('[转录失败')
+  })
+
   const header = 'WEBVTT\n\n'
-  const content = transcriptionChunks
+  const content = validChunks
     .map(chunk => {
       const startTimestamp = msToSrtTimestamp(chunk.startTime).replace(',', '.')
       const endTimestamp = msToSrtTimestamp(chunk.endTime).replace(',', '.')
-      return `${startTimestamp} --> ${endTimestamp}\n${chunk.text}\n`
+      return `${startTimestamp} --> ${endTimestamp}\n${chunk.text.trim()}\n`
     })
     .join('\n')
   

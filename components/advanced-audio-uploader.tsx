@@ -46,7 +46,7 @@ export default function AdvancedAudioUploader() {
   const [error, setError] = useState<string | null>(null)
   
   // 切片设置
-  const [minChunkLength, setMinChunkLength] = useState([2000])
+  const [minChunkLength, setMinChunkLength] = useState([0])
   const [maxChunkLength, setMaxChunkLength] = useState([30000])
   const [silenceThreshold, setSilenceThreshold] = useState([0.01])
   
@@ -157,7 +157,12 @@ export default function AdvancedAudioUploader() {
       setTranscriptionChunks(result.chunks)
       setProgress({ completed: result.totalChunks, total: result.totalChunks })
       
-      console.log(`转录完成，共 ${result.totalChunks} 个片段`)
+      // 显示过滤统计信息
+      if (result.originalChunks && result.originalChunks > result.totalChunks) {
+        console.log(`已过滤 ${result.originalChunks - result.totalChunks} 个空内容片段`)
+      }
+      
+      console.log(`转录完成，共 ${result.totalChunks} 个有效片段`)
     } catch (err) {
       console.error("批量转录失败:", err)
       setError("转录失败：" + (err instanceof Error ? err.message : String(err)))
@@ -266,8 +271,8 @@ export default function AdvancedAudioUploader() {
                   value={minChunkLength}
                   onValueChange={setMinChunkLength}
                   max={10000}
-                  min={500}
-                  step={500}
+                  min={0}
+                  step={100}
                   className="w-full"
                 />
               </div>
@@ -367,7 +372,9 @@ export default function AdvancedAudioUploader() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>转录结果</CardTitle>
+              <CardTitle>
+                转录结果 ({transcriptionChunks.filter(chunk => chunk.text.trim().length > 0).length} 个有效片段)
+              </CardTitle>
               <div className="flex gap-2">
                 <Button 
                   variant="outline" 
@@ -390,19 +397,21 @@ export default function AdvancedAudioUploader() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-60 overflow-y-auto">
-              {transcriptionChunks.map((chunk) => (
+              {transcriptionChunks
+                .filter(chunk => chunk.text.trim().length > 0 && !chunk.text.startsWith('[转录失败'))
+                .map((chunk, displayIndex) => (
                 <div 
                   key={chunk.index} 
                   className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                    <span>片段 {chunk.index + 1}</span>
+                    <span>片段 {displayIndex + 1}</span>
                     <span>
                       {msToSrtTimestamp(chunk.startTime)} → {msToSrtTimestamp(chunk.endTime)}
                     </span>
                   </div>
                   <div className="text-sm whitespace-pre-wrap">
-                    {chunk.text}
+                    {chunk.text.trim()}
                   </div>
                 </div>
               ))}
