@@ -221,4 +221,17 @@ export function generateVTT(transcriptionChunks: TranscriptionChunk[]): string {
     .join('\n')
   
   return header + content
+}
+
+// 生成无时间戳的纯文本格式
+export function generatePlainText(transcriptionChunks: TranscriptionChunk[]): string {
+  // 过滤掉空内容的片段
+  const validChunks = transcriptionChunks.filter(chunk => {
+    const text = chunk.text.trim()
+    return text.length > 0 && !text.startsWith('[转录失败')
+  })
+
+  return validChunks
+    .map(chunk => chunk.text.trim())
+    .join(' ')
 } 

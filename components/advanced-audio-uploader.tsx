@@ -24,16 +24,11 @@ import {
   TranscriptionChunk,
   generateSRT,
   generateVTT,
+  generatePlainText,
   msToSrtTimestamp,
   arrayBufferToBase64
 } from "@/lib/audio-utils"
 import { isPasswordVerified as checkPasswordVerified, getApiKey, getEffectiveApiKey } from "@/lib/auth"
-
-interface ChunkProgress {
-  completed: number
-  total: number
-  currentChunk?: number
-}
 
 export default function AdvancedAudioUploader() {
   const [file, setFile] = useState<File | null>(null)
@@ -42,17 +37,18 @@ export default function AdvancedAudioUploader() {
   const [transcriptionChunks, setTranscriptionChunks] = useState<TranscriptionChunk[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
-  const [progress, setProgress] = useState<ChunkProgress>({ completed: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
   
   // 切片设置
-  const [minChunkLength, setMinChunkLength] = useState([0])
+  const [minChunkLength, setMinChunkLength] = useState([0])     // 改为0秒，不过滤短语音
   const [maxChunkLength, setMaxChunkLength] = useState([30000])
   const [silenceThreshold, setSilenceThreshold] = useState([0.01])
+  const [maxConcurrency, setMaxConcurrency] = useState([4])     // 新增：并发数量设置
   
   // 音频播放状态
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [showAllChunks, setShowAllChunks] = useState(false)     // 新增：控制是否显示所有片段
   const audioRef = useRef<HTMLAudioElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -100,6 +96,12 @@ export default function AdvancedAudioUploader() {
       })
       
       setChunks(audioChunks)
+      
+      // 自动调整并发数量，不超过片段数量
+      if (maxConcurrency[0] > audioChunks.length) {
+        setMaxConcurrency([audioChunks.length])
+      }
+      
       console.log(`音频切片完成，共 ${audioChunks.length} 个片段`)
     } catch (err) {
       console.error("音频切片失败:", err)
@@ -115,7 +117,6 @@ export default function AdvancedAudioUploader() {
     try {
       setIsTranscribing(true)
       setError(null)
-      setProgress({ completed: 0, total: chunks.length })
 
       const effectiveApiKey = getEffectiveApiKey()
       const isVerified = checkPasswordVerified()
@@ -135,7 +136,7 @@ export default function AdvancedAudioUploader() {
         })
       )
 
-      // 调用批量转录API
+      // 调用批量转录API，传入并发数量设置
       const response = await fetch('/api/transcribe-chunks', {
         method: 'POST',
         headers: {
@@ -144,7 +145,8 @@ export default function AdvancedAudioUploader() {
         body: JSON.stringify({
           chunks: chunksData,
           apiKey: effectiveApiKey,
-          isPasswordVerified: isVerified
+          isPasswordVerified: isVerified,
+          maxConcurrency: maxConcurrency[0]
         })
       })
 
@@ -155,7 +157,6 @@ export default function AdvancedAudioUploader() {
 
       const result = await response.json()
       setTranscriptionChunks(result.chunks)
-      setProgress({ completed: result.totalChunks, total: result.totalChunks })
       
       // 显示过滤统计信息
       if (result.originalChunks && result.originalChunks > result.totalChunks) {
@@ -171,18 +172,34 @@ export default function AdvancedAudioUploader() {
     }
   }
 
-  const downloadSubtitle = (format: 'srt' | 'vtt') => {
+  const downloadSubtitle = (format: 'srt' | 'vtt' | 'txt') => {
     if (transcriptionChunks.length === 0) return
 
-    const content = format === 'srt' 
-      ? generateSRT(transcriptionChunks)
-      : generateVTT(transcriptionChunks)
+    let content: string
+    let fileName: string
+
+    switch (format) {
+      case 'srt':
+        content = generateSRT(transcriptionChunks)
+        fileName = 'subtitle.srt'
+        break
+      case 'vtt':
+        content = generateVTT(transcriptionChunks)
+        fileName = 'subtitle.vtt'
+        break
+      case 'txt':
+        content = generatePlainText(transcriptionChunks)
+        fileName = 'transcription.txt'
+        break
+      default:
+        return
+    }
     
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `subtitle.${format}`
+    a.download = fileName
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -271,8 +288,8 @@ export default function AdvancedAudioUploader() {
                   value={minChunkLength}
                   onValueChange={setMinChunkLength}
                   max={10000}
-                  min={0}
-                  step={100}
+                  min={0}        // 改为0，允许不过滤短语音
+                  step={100}     // 改为100ms步长，更精细
                   className="w-full"
                 />
               </div>
@@ -331,7 +348,7 @@ export default function AdvancedAudioUploader() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-              {chunks.slice(0, 12).map((chunk) => (
+              {(showAllChunks ? chunks : chunks.slice(0, 12)).map((chunk) => (
                 <div 
                   key={chunk.index} 
                   className="flex items-center justify-between p-2 bg-muted rounded text-sm"
@@ -342,27 +359,53 @@ export default function AdvancedAudioUploader() {
                   </span>
                 </div>
               ))}
-              {chunks.length > 12 && (
-                <div className="flex items-center justify-center p-2 bg-muted rounded text-sm text-muted-foreground">
+              {chunks.length > 12 && !showAllChunks && (
+                <button 
+                  onClick={() => setShowAllChunks(true)}
+                  className="flex items-center justify-center p-2 bg-muted rounded text-sm text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                >
                   +{chunks.length - 12} 更多...
-                </div>
+                </button>
+              )}
+              {showAllChunks && chunks.length > 12 && (
+                <button 
+                  onClick={() => setShowAllChunks(false)}
+                  className="flex items-center justify-center p-2 bg-muted rounded text-sm text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                >
+                  收起
+                </button>
               )}
             </div>
 
-            <Button 
-              onClick={handleTranscribeChunks} 
-              disabled={isTranscribing || chunks.length === 0}
-              className="w-full mt-4"
-            >
-              {isTranscribing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  正在转录... ({progress.completed}/{progress.total})
-                </>
-              ) : (
-                "开始转录所有片段"
-              )}
-            </Button>
+            {/* 转录设置 */}
+            <div className="mt-4 space-y-3">
+              <div className="space-y-2">
+                <Label>并发处理数: {maxConcurrency[0]} (最大 {chunks.length})</Label>
+                <Slider
+                  value={maxConcurrency}
+                  onValueChange={setMaxConcurrency}
+                  max={chunks.length || 1}  // 动态设置为音频片段数量，最少为1
+                  min={1}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <Button 
+                onClick={handleTranscribeChunks} 
+                disabled={isTranscribing || chunks.length === 0}
+                className="w-full"
+              >
+                {isTranscribing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    正在转录...
+                  </>
+                ) : (
+                  "开始转录所有片段"
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -391,6 +434,14 @@ export default function AdvancedAudioUploader() {
                 >
                   <Download className="mr-1 h-4 w-4" />
                   下载 VTT
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => downloadSubtitle('txt')}
+                >
+                  <Download className="mr-1 h-4 w-4" />
+                  下载 TXT
                 </Button>
               </div>
             </div>

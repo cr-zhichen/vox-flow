@@ -57,7 +57,7 @@ async function transcribeChunk(
 
 export async function POST(request: NextRequest) {
   try {
-    const { chunks, apiKey: clientApiKey, isPasswordVerified } = await request.json()
+    const { chunks, apiKey: clientApiKey, isPasswordVerified, maxConcurrency = 4 } = await request.json()
     
     // 优先使用客户端传入的API密钥，其次在密码验证通过的情况下使用环境变量
     let apiKey = clientApiKey
@@ -73,10 +73,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未提供有效的音频片段" }, { status: 400 })
     }
 
-    console.log(`开始转录 ${chunks.length} 个音频片段`)
+    console.log(`开始转录 ${chunks.length} 个音频片段，并发数: ${maxConcurrency}`)
 
-    // 并发转录所有片段，但限制并发数量
-    const maxConcurrency = 4
+    // 并发转录所有片段，使用用户设置的并发数量
     const results: Array<{
       index: number
       startTime: number
